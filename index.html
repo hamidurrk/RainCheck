@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RainCheck</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/weather-icons/2.0.12/css/weather-icons.min.css" integrity="sha512-r/Gan7PMSRovDus++vDS2Ayutc/cSdl268u047n4z+k7GYuR7Hiw71FsT3QQxdKJBVHYttOJ6IGLnlM9IoMToQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="assets/js/vendor/leaflet/dist/leaflet.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <div id="app" class="app app--initial">
+        <div class="app__overlay"></div>
+        <header class="app__header">
+            <div class="branding">
+                <span class="branding__logo">☔</span>
+                <h1 class="branding__title">RainCheck</h1>
+            </div>
+            <div class="controls">
+                <div class="unit-toggle" role="radiogroup" aria-label="Temperature units">
+                    <button class="unit-toggle__btn" data-unit="celsius" aria-checked="true">°C</button>
+                    <button class="unit-toggle__btn" data-unit="fahrenheit" aria-checked="false">°F</button>
+                    <button class="unit-toggle__btn" data-unit="kelvin" aria-checked="false">K</button>
+                </div>
+                <button class="locate-btn" id="use-location-btn" type="button">Use my location</button>
+            </div>
+        </header>
+        <main class="app__main">
+            <section class="search" aria-label="Search locations">
+                <form id="search-form" class="search__form" autocomplete="off">
+                    <label class="search__label" for="search-input">What is the weather today at</label>
+                    <div class="search__field">
+                        <input id="search-input" class="search__input" type="search" placeholder="" required>
+                    </div>
+                    <label class="search__label" for="search-input">?</label>
+                    <button class="search__submit" type="submit">Search</button>
+                    
+                </form>
+                <div class="search__quick">
+                    <button id="use-ip-btn" type="button">Auto detect via IP</button>
+                </div>
+                <ul class="suggestions" id="suggestions" role="listbox"></ul>
+            </section>
+            <section class="favorites" aria-label="Favorite locations">
+                <div class="favorites__header">
+                    <h2>Favorites</h2>
+                    <button id="toggle-favorite" type="button">+ Add to favorites</button>
+                </div>
+                <div class="favorites__list" id="favorites-list"></div>
+            </section>
+            <section class="current" aria-live="polite">
+                <div class="current__card glass">
+                    <div class="current__main">
+                        <div class="current__icon" id="current-icon" aria-hidden="true"></div>
+                        <div class="current__temp">
+                            <span id="current-temp">--</span>
+                            <span class="current__unit" id="current-unit">°C</span>
+                        </div>
+                    </div>
+                    <div class="current__details">
+                        <h2 id="location-name">Start exploring</h2>
+                        <p id="current-summary"></p>
+                        <div class="current__meta">
+                            <span id="current-apparent">Feels like --</span>
+                            <span id="current-wind">Wind --</span>
+                            <span id="current-humidity">Humidity --</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="providers" aria-label="Provider snapshots">
+                <h2>Provider snapshots</h2>
+                <div class="providers__grid" id="providers-list"></div>
+            </section>
+            <section class="timeline" aria-label="Next 24 hours">
+                <h2>Next 24 hours</h2>
+                <div id="hourly-container" class="timeline__grid"></div>
+            </section>
+            <section class="forecast" aria-label="Seven day forecast">
+                <h2>Next 7 days</h2>
+                <div id="daily-container" class="forecast__grid"></div>
+            </section>
+            <section class="comparison" aria-label="Forecast comparison">
+                <h2>Provider comparison (next 24h)</h2>
+                <div class="comparison__chart glass">
+                    <div id="providers-chart"></div>
+                </div>
+                <div class="comparison__legend" id="providers-legend"></div>
+            </section>
+            <section class="map" aria-label="Map location">
+                <h2>Map</h2>
+                <div id="map" class="map__viewport"></div>
+            </section>
+        </main>
+        <div class="loader" id="loader" aria-hidden="true">
+            <div class="loader__spinner"></div>
+        </div>
+        <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    </div>
+    <script src="assets/js/vendor/leaflet/dist/leaflet.js" ></script>
+    <script src="https://unpkg.com/frappe-charts@1.2.4/dist/frappe-charts.min.iife.js"></script>
+    <script src="assets/js/app.js" type="module"></script>
+</body>
+</html>
