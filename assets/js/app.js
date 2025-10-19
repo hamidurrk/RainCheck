@@ -107,6 +107,14 @@ const PROVIDER_COLORS = {
     sevenTimer: "#ffd35a"
 };
 
+const SNOW_WEATHER_CODES = new Set([71, 73, 75, 77, 85, 86]);
+const RAIN_WEATHER_CODES = new Set([
+    51, 53, 55, 56, 57,
+    61, 63, 65, 66, 67,
+    80, 81, 82,
+    95, 96, 99
+]);
+
 const elements = {
     app: document.getElementById("app"),
     header: document.querySelector(".app__header"),
@@ -149,6 +157,7 @@ const state = {
 };
 
 let suggestionAbortController = null;
+let activeThemeClass = null;
 
 init();
 
@@ -331,7 +340,7 @@ function renderCurrent() {
     elements.currentHumidity.textContent = `Humidity ${Math.round(current.relative_humidity_2m)}%`;
     elements.locationName.textContent = state.currentLocation.name;
 
-    updateBackground(temperatureC, isNight);
+    updateBackground(temperatureC, isNight, weatherCode);
 }
 
 function renderHourly() {
@@ -824,12 +833,15 @@ function updateMap() {
         properties: { name }
     };
 
+    const accentStroke = getAccentColor();
+    const accentFill = getAccentColor(0.6);
+
     state.mapLayer = L.geoJSON(feature, {
         pointToLayer: (_, latlng) => L.circleMarker(latlng, {
             radius: 9,
-            color: "#5ad0ff",
+            color: accentStroke,
             weight: 2,
-            fillColor: "#5ad0ff",
+            fillColor: accentFill,
             fillOpacity: 0.6
         })
     }).addTo(state.map);
@@ -852,21 +864,61 @@ function queueMapResize() {
     });
 }
 
-function updateBackground(temperatureC, isNight) {
+function updateBackground(temperatureC, isNight, weatherCode) {
     const app = elements.app;
-    let gradient;
-    if (isNight) {
-        gradient = "linear-gradient(135deg, rgba(8,11,30,0.95), rgba(30,20,60,0.85))";
-    } else if (temperatureC <= 0) {
-        gradient = "linear-gradient(135deg, rgba(45,95,255,0.92), rgba(12,20,45,0.85))";
-    } else if (temperatureC <= 15) {
-        gradient = "linear-gradient(135deg, rgba(80,160,255,0.92), rgba(10,30,60,0.8))";
-    } else if (temperatureC <= 28) {
-        gradient = "linear-gradient(135deg, rgba(120,200,255,0.92), rgba(40,80,120,0.75))";
-    } else {
-        gradient = "linear-gradient(135deg, rgba(255,140,102,0.92), rgba(120,40,40,0.75))";
+    if (!app) {
+        return;
     }
-    app.style.background = `${gradient}, radial-gradient(circle at top, rgba(90,208,255,0.25), transparent 55%)`;
+
+    const baseTheme = determineThemeBase(temperatureC, weatherCode);
+    const timeSuffix = isNight ? "night" : "day";
+    const nextThemeClass = `theme-${baseTheme}-${timeSuffix}`;
+
+    if (activeThemeClass !== nextThemeClass) {
+        if (activeThemeClass) {
+            app.classList.remove(activeThemeClass);
+        }
+        app.classList.add(nextThemeClass);
+        activeThemeClass = nextThemeClass;
+    }
+
+    app.dataset.theme = `${baseTheme}-${timeSuffix}`;
+    app.style.background = "";
+}
+
+function determineThemeBase(temperatureC, weatherCode) {
+    const code = Number.isFinite(weatherCode) ? weatherCode : Number(weatherCode);
+    if (Number.isFinite(code)) {
+        if (SNOW_WEATHER_CODES.has(code)) {
+            return "snowy";
+        }
+        if (RAIN_WEATHER_CODES.has(code)) {
+            return "rainy";
+        }
+    }
+
+    const temp = typeof temperatureC === "number" ? temperatureC : Number(temperatureC);
+    if (Number.isFinite(temp)) {
+        if (temp > 25) {
+            return "hot";
+        }
+        if (temp > 15) {
+            return "warm";
+        }
+    }
+    return "cold";
+}
+
+function getAccentColor(alpha = 1) {
+    const fallback = "90, 208, 255";
+    const app = elements.app;
+    const computed = app ? getComputedStyle(app) : null;
+    const rgbRaw = computed?.getPropertyValue("--accent-rgb")?.trim() || fallback;
+    const rgb = rgbRaw.split(",").map((value) => value.trim()).filter(Boolean).join(", ");
+    if (alpha >= 1) {
+        return `rgb(${rgb})`;
+    }
+    return `rgba(${rgb}, ${alpha})`;
 }
 
 function computeIsNight(now, sunriseIso, sunsetIso, utcOffsetSeconds = 0) {
