@@ -176,7 +176,7 @@ function attachEventListeners() {
         searchAndLoad(query);
     });
 
-    elements.searchInput.addEventListener("input", debounce(handleSearchInput, 280));
+    elements.searchInput.addEventListener("input", debounce(handleSearchInput, 180));
 
     elements.searchInput.addEventListener("focus", () => {
         if (elements.suggestions.childElementCount > 0) {
@@ -364,10 +364,10 @@ function renderHourly() {
         const item = document.createElement("div");
         item.className = "timeline__item";
         item.innerHTML = `
-            <strong>${hourLabel}</strong>
-            <i class="wi ${icon}" aria-hidden="true"></i>
-            <span>${info.label}</span>
-            <strong>${formatTemperature(temp)}</strong>
+            <span class="timeline__hour">${hourLabel}</span>
+            <span class="timeline__icon"><i class="wi ${icon}" aria-hidden="true"></i></span>
+            <span class="timeline__label">${info.label}</span>
+            <span class="timeline__temp">${formatTemperature(temp)}${formatUnitSymbol()}</span>
         `;
         container.appendChild(item);
     });
@@ -630,17 +630,16 @@ function buildSevenTimerSnapshot(unitSymbol) {
     if (!entry) {
         return null;
     }
-    const mapping = entry.weather ? SEVENTIMER_MAP[entry.weather] : null;
-    const icon = mapping ? mapping.iconDay : "wi-na";
-    const summary = mapping ? mapping.label : "7timer";
-    const windMps = entry.wind10m?.speed ?? null;
-    const cloudPercent = entry.cloudcover != null ? Math.round((entry.cloudcover / 9) * 100) : null;
-    const humidityText = cloudPercent != null ? `Clouds ${cloudPercent}%` : "Clouds --";
+    const condition = interpretSevenTimerEntry(entry);
+    const windMps = typeof entry.wind10m === "object" ? entry.wind10m?.speed ?? null : entry.wind10m ?? null;
+    const humidityText = condition.humidityText
+        || (entry.rh2m != null ? `Humidity ${entry.rh2m}%`
+        : condition.cloudPercent != null ? `Clouds ${condition.cloudPercent}%` : "Clouds --");
     return createProviderCard({
         name: "7timer",
         tempC: entry.temp2m ?? null,
-        icon,
-        summary,
+        icon: condition.icon,
+        summary: condition.label,
         windText: windMps != null ? `Wind ${formatWind(windMps)}` : "Wind --",
         humidityText,
         unitSymbol
@@ -651,19 +650,82 @@ function createProviderCard({ name, tempC, icon, summary, windText, humidityText
     const card = document.createElement("article");
     card.className = "provider-card";
     const temperature = tempC != null ? `${formatTemperature(tempC)}${unitSymbol}` : "--";
+    const summaryText = summary || "N/A";
+    const iconClass = icon || "wi-na";
     card.innerHTML = `
         <div class="provider-card__header">
             <span>${name}</span>
             <span>${temperature}</span>
         </div>
-        <div class="provider-card__icon" aria-hidden="true"><i class="wi ${icon}"></i></div>
-        <span>${summary}</span>
+        <div class="provider-card__icon" aria-hidden="true"><i class="wi ${iconClass}"></i></div>
+        <span>${summaryText}</span>
         <div class="provider-card__metrics">
             <span>${windText || "Wind --"}</span>
             <span>${humidityText || "Humidity --"}</span>
         </div>
     `;
     return card;
+}
+
+function interpretSevenTimerEntry(entry) {
+    if (!entry || typeof entry !== "object") {
+        return { label: "7timer", icon: "wi-na", cloudPercent: null, humidityText: null };
+    }
+
+    const cloudPercent = entry.cloudcover != null ? Math.round((entry.cloudcover / 9) * 100) : null;
+    const humidityText = entry.rh2m != null ? `Humidity ${entry.rh2m}%` : null;
+
+    if (entry.weather) {
+        const mapping = SEVENTIMER_MAP[entry.weather];
+        if (mapping) {
+            return {
+                label: mapping.label,
+                icon: mapping.iconDay,
+                cloudPercent,
+                humidityText
+            };
+        }
+    }
+
+    const precipitation = entry.prec_type || entry.precType;
+    const precAmountRaw = entry.prec_amount ?? entry.precAmount ?? 0;
+    const precAmount = typeof precAmountRaw === "number" ? precAmountRaw : parseFloat(precAmountRaw) || 0;
+    if (precipitation && precipitation !== "none") {
+        switch (precipitation) {
+            case "snow":
+            case "ice":
+            case "snowstorm":
+                return { label: "Snow", icon: "wi-snow", cloudPercent, humidityText };
+            case "frzr":
+            case "frzg":
+                return { label: "Freezing rain", icon: "wi-sleet", cloudPercent, humidityText };
+            case "rain":
+            case "showers":
+            case "shower":
+                return {
+                    label: precAmount > 1 ? "Rain" : "Light rain",
+                    icon: precAmount > 1 ? "wi-rain" : "wi-rain-mix",
+                    cloudPercent,
+                    humidityText
+                };
+            case "drizzle":
+                return { label: "Drizzle", icon: "wi-sprinkle", cloudPercent, humidityText };
+            default:
+                return { label: "Precipitation", icon: "wi-rain", cloudPercent, humidityText };
+        }
+    }
+
+    const cover = cloudPercent != null ? cloudPercent : 50;
+    if (cover <= 20) {
+        return { label: "Clear", icon: "wi-day-sunny", cloudPercent, humidityText };
+    }
+    if (cover <= 50) {
+        return { label: "Partly cloudy", icon: "wi-day-cloudy", cloudPercent, humidityText };
+    }
+    if (cover <= 75) {
+        return { label: "Mostly cloudy", icon: "wi-cloud", cloudPercent, humidityText };
+    }
+    return { label: "Overcast", icon: "wi-cloudy", cloudPercent, humidityText };
 }
 
 function renderFavorites() {
@@ -877,7 +939,7 @@ function formatWind(speedMetersPerSecond) {
 
 function handleSearchInput(event) {
     const query = event.target.value.trim();
-    if (query.length < 3) {
+    if (query.length < 2) {
         hideSuggestions();
         return;
     }
@@ -889,13 +951,14 @@ async function fetchSuggestions(query) {
         suggestionAbortController.abort();
     }
     suggestionAbortController = new AbortController();
+    showSuggestionsStatus("Searching…");
     try {
         const results = await geocodeSearch(query, suggestionAbortController.signal);
         if (results.length === 0) {
-            hideSuggestions();
+            showSuggestionsStatus("No matches found");
             return;
         }
-        elements.suggestions.innerHTML = "";
+        const fragment = document.createDocumentFragment();
         results.slice(0, 5).forEach((result) => {
             const item = document.createElement("li");
             item.textContent = result.name;
@@ -905,15 +968,17 @@ async function fetchSuggestions(query) {
                 hideSuggestions();
                 loadWeatherForLocation(result);
             });
-            elements.suggestions.appendChild(item);
+            fragment.appendChild(item);
         });
+        elements.suggestions.innerHTML = "";
+        elements.suggestions.appendChild(fragment);
         elements.suggestions.classList.add("suggestions--visible");
     } catch (error) {
         if (error.name === "AbortError") {
             return;
         }
         console.error(error);
-        hideSuggestions();
+        showSuggestionsStatus("Unable to search right now");
     }
 }
 
@@ -922,16 +987,65 @@ function hideSuggestions() {
     elements.suggestions.innerHTML = "";
 }
 
+function showSuggestionsStatus(message) {
+    elements.suggestions.innerHTML = "";
+    const item = document.createElement("li");
+    item.className = "suggestions__status";
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-disabled", "true");
+    item.textContent = message;
+    elements.suggestions.appendChild(item);
+    elements.suggestions.classList.add("suggestions--visible");
+}
+
 async function geocodeSearch(query, signal) {
-    const url = new URL("https://geocode.maps.co/search");
-    url.searchParams.set("q", query);
-    url.searchParams.set("limit", "5");
-    const response = await fetch(url.toString(), { signal });
-    if (!response.ok) {
-        throw new Error("Geocoding failed");
+    const primaryUrl = new URL("https://geocode.maps.co/search");
+    primaryUrl.searchParams.set("q", query);
+    primaryUrl.searchParams.set("limit", "5");
+
+    try {
+        const response = await fetch(primaryUrl.toString(), { signal });
+        if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+                return data.map((entry) => buildLocationFromGeocode(entry, query));
+            }
+        } else {
+            throw new Error(`Primary geocoder responded with ${response.status}`);
+        }
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw error;
+        }
+        console.warn("Primary geocoder failed, attempting fallback", error);
     }
-    const data = await response.json();
-    return data.map((entry) => buildLocationFromGeocode(entry, query));
+
+    if (signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+    }
+
+    const fallbackUrl = new URL("https://nominatim.openstreetmap.org/search");
+    fallbackUrl.searchParams.set("q", query);
+    fallbackUrl.searchParams.set("format", "jsonv2");
+    fallbackUrl.searchParams.set("limit", "5");
+    fallbackUrl.searchParams.set("addressdetails", "1");
+
+    const fallbackResponse = await fetch(fallbackUrl.toString(), {
+        headers: {
+            Accept: "application/json"
+        },
+        signal
+    });
+
+    if (!fallbackResponse.ok) {
+        throw new Error(`Fallback geocoder responded with ${fallbackResponse.status}`);
+    }
+
+    const fallbackData = await fallbackResponse.json();
+    if (!Array.isArray(fallbackData) || fallbackData.length === 0) {
+        return [];
+    }
+    return fallbackData.map((entry) => buildLocationFromGeocode(entry, query));
 }
 
 async function reverseGeocode(latitude, longitude) {
@@ -989,16 +1103,31 @@ async function fetchWttr(latitude, longitude) {
 }
 
 async function fetchSevenTimer(latitude, longitude) {
-    try {
-        const url = `https://www.7timer.info/bin/api.pl?lat=${latitude.toFixed(4)}&lon=${longitude.toFixed(4)}&product=meteo&output=json`;
+    const baseParams = `lat=${latitude.toFixed(4)}&lon=${longitude.toFixed(4)}&output=json`;
+
+    const attempt = async (product) => {
+        const url = `https://www.7timer.info/bin/api.pl?${baseParams}&product=${product}`;
         const response = await fetch(url);
         if (!response.ok) {
-            throw new Error("7timer request failed");
+            throw new Error(`7timer ${product} request failed (${response.status})`);
         }
-        return response.json();
-    } catch (error) {
-        console.error("7timer error", error);
-        return null;
+        const data = await response.json();
+        if (!data || !Array.isArray(data.dataseries) || data.dataseries.length === 0) {
+            throw new Error(`7timer ${product} returned empty dataset`);
+        }
+        return data;
+    };
+
+    try {
+        return await attempt("civil");
+    } catch (civilError) {
+        console.warn("7timer civil product unavailable, falling back to meteo", civilError);
+        try {
+            return await attempt("meteo");
+        } catch (meteoError) {
+            console.error("7timer error", meteoError);
+            return null;
+        }
     }
 }
 

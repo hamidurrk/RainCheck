@@ -26,6 +26,9 @@
                     <button class="unit-toggle__btn" data-unit="kelvin" aria-checked="false">K</button>
                 </div>
                 <button class="locate-btn" id="use-location-btn" type="button">Use my location</button>
+                <div class="search__quick">
+                    <button id="use-ip-btn" type="button">Use my IP address</button>
+                </div>
             </div>
         </header>
         <main class="app__main">
@@ -34,15 +37,12 @@
                     <label class="search__label" for="search-input">What is the weather today at</label>
                     <div class="search__field">
                         <input id="search-input" class="search__input" type="search" placeholder="" required>
+                        <ul class="suggestions" id="suggestions" role="listbox"></ul>
                     </div>
                     <label class="search__label" for="search-input">?</label>
                     <button class="search__submit" type="submit">Search</button>
                     
                 </form>
-                <div class="search__quick">
-                    <button id="use-ip-btn" type="button">Auto detect via IP</button>
-                </div>
-                <ul class="suggestions" id="suggestions" role="listbox"></ul>
             </section>
             <section class="favorites" aria-label="Favorite locations">
                 <div class="favorites__header">
