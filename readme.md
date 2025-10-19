@@ -2,6 +2,10 @@
 
 RainCheck is a single-page weather experience that utilizes multiple forecast providers, an interactive map, responsive charts, and a themable glassmorphism UI. The project is intentionally framework-free (vanilla HTML, CSS, and JavaScript) so it can be served statically and extended without a build step.
 
+<p align="center">
+  <img src="./assets/media/raincheck-themes.gif" alt="Raincheck UI" />
+</p>
+
 ---
 
 ### Contents
